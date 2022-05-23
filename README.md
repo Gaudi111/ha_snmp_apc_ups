@@ -5,7 +5,7 @@ netif - total traffic
 cpu load averages (1/2/3)
 ..more to come
 
-Modified version, based on original repo. Added more features like
+Modified version, based on original repo by @weltmeyer. Added more features like
 - Community configuration from setup
 - Added 1 min / 5 min / 15 min load
 - Added Uptime

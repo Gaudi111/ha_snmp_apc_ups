@@ -1,9 +1,9 @@
 {
     "domain": "snmp_stats",
     "name": "snmp_stats",
-    "documentation": "https://www.weltmeyer.net",
+    "documentation": "https://github.com/mobrembski/ha_snmp_stats",
     "dependencies": [],
-    "codeowners": ["@weltmeyer"],
+    "codeowners": ["@weltmeyer", "@mobrembski"],
     "requirements": ["pysnmp"],
     "config_flow": true,
     "version": "0.1.0"
