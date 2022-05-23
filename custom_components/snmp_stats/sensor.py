@@ -187,46 +187,51 @@ class SnmpStatisticsMonitor:
     def update_stats(self):
         self.update_netif_stats()
         more_data=__class__.get(self.target_ip,[
-            '1.3.6.1.2.1.1.5.0',
-            '1.3.6.1.4.1.2021.10.1.3.1',
-            '1.3.6.1.4.1.2021.10.1.3.2',
-            '1.3.6.1.4.1.2021.10.1.3.3',
-            ],hlapi.CommunityData('public'))
-        
-        
-        #cpu usage://1.3.6.1.2.1.25.3.3[.1...4]
-        cpu_usages= __class__.get_bulk(self.target_ip, [
-            '1.3.6.1.2.1.25.3.3',
-        ], hlapi.CommunityData('public', mpModel=1), 
-            32 
-        )
+            HOSTNAME_OID,
+            CPU_LOAD_1M_OID,
+            CPU_LOAD_5M_OID,
+            CPU_LOAD_15M_OID,
+            UPTIME_OID,
+            MEM_REAL_TOTAL_OID,
+            MEM_REAL_USED_OID,
+            MEM_REAL_BUFFERED_OID,
+            MEM_REAL_CACHED_OID,
+            TCP_ESTABLISHED_OID
+            ],hlapi.CommunityData(self.community))
 
-        
-        #print(more_data)
-        #print(more_data['1.3.6.1.4.1.2021.10.1.1'])
-        #print(more_data['1.3.6.1.2.1.1.5.0'])
-        #for k,v in more_data:
-        #    print(f"{k}:{v}")
-        self.hostname=more_data['1.3.6.1.2.1.1.5.0']
-        self.cpuload1=more_data['1.3.6.1.4.1.2021.10.1.3.1']
-        self.cpuload2=more_data['1.3.6.1.4.1.2021.10.1.3.2']
-        self.cpuload3=more_data['1.3.6.1.4.1.2021.10.1.3.3']
+        self.hostname=more_data[HOSTNAME_OID]
+        self.cpuload1=more_data[CPU_LOAD_1M_OID]
+        self.cpuload2=more_data[CPU_LOAD_5M_OID]
+        self.cpuload3=more_data[CPU_LOAD_15M_OID]
+        snmp_uptime_ticks = int(more_data[UPTIME_OID] or 0)
+        uptime_seconds = snmp_uptime_ticks/100
+        self.uptime= strfdelta(timedelta(seconds=uptime_seconds), '{D:2}d {H:2}h {M:2}m {S:2}s')
+        self.totalTcpEstablished = int(more_data[TCP_ESTABLISHED_OID] or 0)
+        memRealTotal = int(more_data[MEM_REAL_TOTAL_OID] or 0)
+        self.memRealUsed = int(more_data[MEM_REAL_USED_OID] or 0)
+        memRealBuffered = int(more_data[MEM_REAL_BUFFERED_OID] or 0)
+        memCached = int(more_data[MEM_REAL_CACHED_OID] or 0)
+        if memRealTotal:
+            self.memRealPercent = round(( (self.memRealUsed - memRealBuffered - memCached) / memRealTotal ) * 100, 1)
+        else:
+            self.memRealPercent = 0
+        self.memFree = memRealTotal - self.memRealUsed
+        self.memBuffers = memRealBuffered
+        self.memCached = memCached
 
     def update_netif_stats(self):
         if_data=self.current_if_data
         its = __class__.get_bulk_auto(self.target_ip, [
-            '1.3.6.1.2.1.2.2.1.2',#v1, ifDescr
+            IF_DESCR_OID,#v1, ifDescr
             #'1.3.6.1.2.1.2.2.1.16',#v1, ifOutOctets
             #'1.3.6.1.2.1.2.2.1.10',#v1, ifInOctets
-            '1.3.6.1.2.1.31.1.1.1.1',#v2, ifName
-            '1.3.6.1.2.1.31.1.1.1.18',#v2, ifAlias
-            '1.3.6.1.2.1.31.1.1.1.6', #v2, ifHCInOctets
-            '1.3.6.1.2.1.31.1.1.1.10', #v2, ifHCOutOctets
-        ], hlapi.CommunityData('public', mpModel=1), 
-            '1.3.6.1.2.1.2.1.0' #v1, ifCount
+            IF_NAME_OID,#v2, ifName
+            IF_ALIAS_OID,#v2, ifAlias
+            IF_HC_IN_OCTETS_OID, #v2, ifHCInOctets
+            IF_HC_OUT_OCTETS_OID, #v2, ifHCOutOctets
+        ], hlapi.CommunityData(self.community, mpModel=1),
+            IF_COUNT_OID #v1, ifCount
         )
-
-        
 
         for k in if_data:
             if_data[k]['rx_octets_prev']=if_data[k]['rx_octets']
