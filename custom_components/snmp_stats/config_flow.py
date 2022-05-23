@@ -27,9 +27,11 @@ class ConfigFlowHandler(config_entries.ConfigFlow,domain=DOMAIN):
             return self._show_form()
 
         ipaddress=user_input[CONF_IP_ADDRESS]
+        community=user_input[CONF_CUSTOMIZE_COMMUNITY]
+        iface_list=user_input[CONF_CUSTOMIZE_IFACE]
         
         try:
-            SnmpStatisticsMonitor(ipaddress)
+            SnmpStatisticsMonitor(ipaddress,community,iface_list)
         except:
             e = traceback.format_exc()
             LOGGER.error("Unable to connect to snmp: %s", e)
@@ -39,6 +41,8 @@ class ConfigFlowHandler(config_entries.ConfigFlow,domain=DOMAIN):
             title=user_input[CONF_IP_ADDRESS],
             data={
                 CONF_IP_ADDRESS: ipaddress,
+                CONF_CUSTOMIZE_COMMUNITY: community,
+                CONF_CUSTOMIZE_IFACE: iface_list
             },
         )
 

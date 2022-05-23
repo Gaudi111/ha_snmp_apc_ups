@@ -1,19 +1,26 @@
+from email.policy import default
 import logging
 import voluptuous as vol
+from typing import Final
 from datetime import timedelta
 from homeassistant.helpers import config_validation as cv
 from homeassistant.const import (
     CONF_IP_ADDRESS,
-    CONF_SCAN_INTERVAL
+    Platform
 )
 LOGGER = logging.getLogger(__package__)
 
 DOMAIN = "snmp_stats"
 DEFAULT_SCAN_INTERVAL = 10
 
+CONF_CUSTOMIZE_IFACE: Final = "customize_snmp_iface"
+CONF_CUSTOMIZE_COMMUNITY: Final = "customize_snmp_community"
+
 CONFIG_SCHEMA_A=vol.Schema(
             {
                 vol.Required(CONF_IP_ADDRESS): str,
+                vol.Optional(CONF_CUSTOMIZE_IFACE, default=""): str,
+                vol.Required(CONF_CUSTOMIZE_COMMUNITY, default="public"): str,
             }
 )
 

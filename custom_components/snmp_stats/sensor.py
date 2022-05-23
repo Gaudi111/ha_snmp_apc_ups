@@ -1,14 +1,20 @@
+from dataclasses import dataclass
 from pysnmp import hlapi
 from pysnmp.error import PySnmpError
 import time
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta
 import sys
 # pylint: disable=unused-wildcard-import
 from .const import * 
 # pylint: enable=unused-wildcard-import
 import threading
 import time
+from string import Formatter
+from homeassistant.components.sensor import (
+    SensorEntityDescription,
+    SensorStateClass,
+)
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.entity import Entity
 
@@ -18,17 +24,27 @@ from homeassistant.const import (
     CONF_SCAN_INTERVAL,
 )
 
+from homeassistant.const import (
+    DATA_KILOBYTES,
+    PERCENTAGE,
+    DATA_RATE_MEGABYTES_PER_SECOND,
+    DATA_RATE_MEGABITS_PER_SECOND,
+    DATA_MEGABYTES
+)
+
 
 async def async_setup_entry(hass, config_entry,async_add_entities):
     """Set up the sensor platform."""
     LOGGER.info('Setup snmp_stats')
     ipaddress=config_entry.data.get(CONF_IP_ADDRESS)
+    community=config_entry.data.get(CONF_CUSTOMIZE_COMMUNITY)
+    iface_list=config_entry.data.get(CONF_CUSTOMIZE_IFACE)
     updateIntervalSeconds=config_entry.options.get(CONF_SCAN_INTERVAL)
     maxretries=3
     
     for i in range(maxretries):
         try:
-            monitor = SnmpStatisticsMonitor(ipaddress,updateIntervalSeconds,async_add_entities)
+            monitor = SnmpStatisticsMonitor(ipaddress,community,iface_list,updateIntervalSeconds,async_add_entities)
             break
         except:
             if i==maxretries-1:
@@ -48,12 +64,152 @@ async def async_setup_entry(hass, config_entry,async_add_entities):
     LOGGER.info('Init done')
     return True
 
+def strfdelta(tdelta, fmt='{D:02}d {H:02}h {M:02}m {S:02}s', inputtype='timedelta'):
+    """Convert a datetime.timedelta object or a regular number to a custom-
+    formatted string, just like the stftime() method does for datetime.datetime
+    objects.
+
+    The fmt argument allows custom formatting to be specified.  Fields can 
+    include seconds, minutes, hours, days, and weeks.  Each field is optional.
+
+    Some examples:
+        '{D:02}d {H:02}h {M:02}m {S:02}s' --> '05d 08h 04m 02s' (default)
+        '{W}w {D}d {H}:{M:02}:{S:02}'     --> '4w 5d 8:04:02'
+        '{D:2}d {H:2}:{M:02}:{S:02}'      --> ' 5d  8:04:02'
+        '{H}h {S}s'                       --> '72h 800s'
+
+    The inputtype argument allows tdelta to be a regular number instead of the  
+    default, which is a datetime.timedelta object.  Valid inputtype strings: 
+        's', 'seconds', 
+        'm', 'minutes', 
+        'h', 'hours', 
+        'd', 'days', 
+        'w', 'weeks'
+    """
+
+    # Convert tdelta to integer seconds.
+    if inputtype == 'timedelta':
+        remainder = int(tdelta.total_seconds())
+    elif inputtype in ['s', 'seconds']:
+        remainder = int(tdelta)
+    elif inputtype in ['m', 'minutes']:
+        remainder = int(tdelta)*60
+    elif inputtype in ['h', 'hours']:
+        remainder = int(tdelta)*3600
+    elif inputtype in ['d', 'days']:
+        remainder = int(tdelta)*86400
+    elif inputtype in ['w', 'weeks']:
+        remainder = int(tdelta)*604800
+
+    f = Formatter()
+    desired_fields = [field_tuple[1] for field_tuple in f.parse(fmt)]
+    possible_fields = ('W', 'D', 'H', 'M', 'S')
+    constants = {'W': 604800, 'D': 86400, 'H': 3600, 'M': 60, 'S': 1}
+    values = {}
+    for field in possible_fields:
+        if field in desired_fields and field in constants:
+            values[field], remainder = divmod(remainder, constants[field])
+    return f.format(fmt, **values)
+
+SENSOR_TYPES: dict[str, SensorEntityDescription] = {
+    "memory": SensorEntityDescription(
+        key="memory",
+        native_unit_of_measurement=DATA_KILOBYTES,
+        icon="mdi:memory",
+        state_class=SensorStateClass.MEASUREMENT,
+        unit_of_measurement=DATA_KILOBYTES,
+    ),
+    "memory_percent": SensorEntityDescription(
+        key="memory_percent",
+        native_unit_of_measurement=PERCENTAGE,
+        icon="mdi:memory",
+        state_class=SensorStateClass.MEASUREMENT,
+        unit_of_measurement=PERCENTAGE,
+    ),
+    "cpu": SensorEntityDescription(
+        key="memory_used",
+        native_unit_of_measurement=DATA_KILOBYTES,
+        icon="mdi:memory",
+        state_class=SensorStateClass.MEASUREMENT,
+        unit_of_measurement=DATA_KILOBYTES,
+    ),
+    "load_15m": SensorEntityDescription(
+        key="load_15m",
+        icon="mdi:cpu-64-bit",
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    "load_1m": SensorEntityDescription(
+        key="load_1m",
+        icon="mdi:cpu-64-bit",
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    "load_5m": SensorEntityDescription(
+        key="load_5m",
+        icon="mdi:cpu-64-bit",
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    "uptime": SensorEntityDescription(
+        key="uptime",
+        icon="mdi:clock",
+        state_class=SensorStateClass.TOTAL,
+    ),
+    "throughput_network_out_mbit":SensorEntityDescription(
+        key="throughput_network_out_mbit",
+        native_unit_of_measurement=DATA_RATE_MEGABITS_PER_SECOND,
+        unit_of_measurement=DATA_RATE_MEGABITS_PER_SECOND,
+        icon="mdi:cloud-upload",
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    "throughput_network_in_mbit":SensorEntityDescription(
+        key="throughput_network_in_mbit",
+        native_unit_of_measurement=DATA_RATE_MEGABITS_PER_SECOND,
+        unit_of_measurement=DATA_RATE_MEGABITS_PER_SECOND,
+        icon="mdi:cloud-download",
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    "throughput_network_out_mbyte":SensorEntityDescription(
+        key="throughput_network_out_mbyte",
+        native_unit_of_measurement=DATA_RATE_MEGABYTES_PER_SECOND,
+        unit_of_measurement=DATA_RATE_MEGABYTES_PER_SECOND,
+        icon="mdi:cloud-upload",
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    "throughput_network_in_mbyte":SensorEntityDescription(
+        key="throughput_network_in_mbyte",
+        native_unit_of_measurement=DATA_RATE_MEGABYTES_PER_SECOND,
+        unit_of_measurement=DATA_RATE_MEGABYTES_PER_SECOND,
+        icon="mdi:cloud-download",
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    "throughput_total_network_out":SensorEntityDescription(
+        key="throughput_network_out",
+        native_unit_of_measurement=DATA_MEGABYTES,
+        unit_of_measurement=DATA_MEGABYTES,
+        icon="mdi:cloud-upload",
+        state_class=SensorStateClass.TOTAL_INCREASING,
+    ),
+    "throughput_total_network_in":SensorEntityDescription(
+        key="throughput_network_in",
+        native_unit_of_measurement=DATA_MEGABYTES,
+        unit_of_measurement=DATA_MEGABYTES,
+        icon="mdi:cloud-download",
+        state_class=SensorStateClass.TOTAL_INCREASING,
+    ),
+    "total_tcp":SensorEntityDescription(
+        key="total_tcp",
+        icon="mdi:network",
+        native_unit_of_measurement="",
+        unit_of_measurement="",
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+}
 
 class SnmpStatisticsSensor(Entity):
-    def __init__(self,id,name=None):
+    def __init__(self,id,entity_description,name=None):
         self._attributes = {}
         self._state ="NOTRUN"
         self.entity_id=id
+        self.entity_description = entity_description
         if name is None:
             name=id
         self._name=name
@@ -97,9 +253,15 @@ class SnmpStatisticsSensor(Entity):
     def update(self):
         LOGGER.info("update "+self.entity_id)
 
+@dataclass
+class SysMonitorSensorEntityDescription(SensorEntityDescription):
+    """Description for System Monitor sensor entities."""
+
+    mandatory_arg: bool = False
+
 class SnmpStatisticsMonitor:
 
-    def __init__(self,target_ip,updateIntervalSeconds=1,async_add_entities=None):
+    def __init__(self,target_ip,community,iface_list,updateIntervalSeconds=1,async_add_entities=None):
         self.meterSensors={}
         self.stopped = False
         self.async_add_entities=async_add_entities
@@ -108,10 +270,22 @@ class SnmpStatisticsMonitor:
         self.current_if_data_time=0
         self.stat_time=0
         self.target_ip=target_ip
+        self.community=community
+        if isinstance(iface_list,str):
+            self.iface_list=iface_list.split()
+        else:
+            self.iface_list=[]
         self.hostname=None
         self.cpuload1=None
         self.cpuload2=None
         self.cpuload3=None
+        self.uptime=None
+        self.memRealUsed=None
+        self.memRealPercent=None
+        self.memFree=None
+        self.memBuffers=None
+        self.memCached=None
+        self.totalTcpEstablished=None
         self.update_stats()#try this to throw error if not working.
         if async_add_entities is not None:
             self.setupEntities()
@@ -335,21 +509,13 @@ class SnmpStatisticsMonitor:
             self.AddOrUpdateEntities()
 
     
-    def _AddOrUpdateEntity(self,id,friendlyname,value,unit):
+    def _AddOrUpdateEntity(self,id,entity_description,friendlyname,value):
         if id in self.meterSensors:
             sensor=self.meterSensors[id]
-            #sensor.set_attributes({"unit_of_measurement":unit,"device_class":"power","friendly_name":friendlyname})
             sensor.set_state(value)
         else:
-            sensor=SnmpStatisticsSensor(id,friendlyname)
+            sensor=SnmpStatisticsSensor(id,entity_description,friendlyname)
             sensor._state=value
-            sensor.set_attributes(
-                    {
-                        "unit_of_measurement":unit,
-                        #"device_class":"power",
-                        "friendly_name":friendlyname
-                    }
-                )
             self.async_add_entities([sensor])
             #time.sleep(.5)#sleep a moment and wait for async add
             self.meterSensors[id]=sensor
@@ -360,37 +526,32 @@ class SnmpStatisticsMonitor:
             cur_if_data=self.current_if_data[k]
             if_name=cur_if_data['name2']
             if_alias=cur_if_data['alias']
+            if not self.iface_list or if_name in self.iface_list:
 
-            if_rx_mbit=cur_if_data['rx_speed_octets']*8/1000/1000
-            if_tx_mbit=cur_if_data['tx_speed_octets']*8/1000/1000
-            if_rx_mbyte=cur_if_data['rx_speed_octets']/1000/1000
-            if_tx_mbyte=cur_if_data['tx_speed_octets']/1000/1000
+                if_rx_mbit=cur_if_data['rx_speed_octets']*8/1000/1000
+                if_tx_mbit=cur_if_data['tx_speed_octets']*8/1000/1000
+                if_rx_mbyte=cur_if_data['rx_speed_octets']/1000/1000
+                if_tx_mbyte=cur_if_data['tx_speed_octets']/1000/1000
 
+                if_rx_total_mbyte=round(cur_if_data['rx_octets']/1024/1024,2)
+                if_tx_total_mbyte=round(cur_if_data['tx_octets']/1024/1024,2)
 
+                self._AddOrUpdateEntity(allSensorsPrefix+"netif_"+if_name+'_curbw_out_mbit',SENSOR_TYPES["throughput_network_out_mbit"],self.target_ip.replace('.','_')+" "+if_name+" BW Out (mbit)",round(if_tx_mbit,2))
+                self._AddOrUpdateEntity(allSensorsPrefix+"netif_"+if_name+'_curbw_in_mbit',SENSOR_TYPES["throughput_network_in_mbit"],self.target_ip.replace('.','_')+" "+if_name+" BW In (mbit)",round(if_rx_mbit,2))
 
-            if_rx_total_mbit=cur_if_data['rx_octets']*8/1000/1000
-            if_tx_total_mbit=cur_if_data['tx_octets']*8/1000/1000
+                self._AddOrUpdateEntity(allSensorsPrefix+"netif_"+if_name+'_curbw_out_mbyte',SENSOR_TYPES["throughput_network_out_mbyte"],self.target_ip.replace('.','_')+" "+if_name+" BW Out (mbyte)",round(if_tx_mbyte,2))
+                self._AddOrUpdateEntity(allSensorsPrefix+"netif_"+if_name+'_curbw_in_mbyte',SENSOR_TYPES["throughput_network_out_mbyte"],self.target_ip.replace('.','_')+" "+if_name+" BW In (mbyte)",round(if_rx_mbyte,2))
 
+                self._AddOrUpdateEntity(allSensorsPrefix+"netif_"+if_name+'_total_out_mbyte',SENSOR_TYPES["throughput_total_network_out"],self.target_ip.replace('.','_')+" "+if_name+" Total Out (MBytes)",if_tx_total_mbyte)
+                self._AddOrUpdateEntity(allSensorsPrefix+"netif_"+if_name+'_total_in_mbyte',SENSOR_TYPES["throughput_total_network_in"],self.target_ip.replace('.','_')+" "+if_name+" Total In (MBytes)",if_rx_total_mbyte)
 
-            self._AddOrUpdateEntity(allSensorsPrefix+"netif_"+if_name+'_curbw_out_mbit',if_name+" BW Out (mbit)",round(if_tx_mbit,2),'mbit/s')
-            self._AddOrUpdateEntity(allSensorsPrefix+"netif_"+if_name+'_curbw_in_mbit',if_name+" BW In (mbit)",round(if_rx_mbit,2),'mbit/s')
-
-            self._AddOrUpdateEntity(allSensorsPrefix+"netif_"+if_name+'_curbw_out_mbyte',if_name+" BW Out (mbyte)",round(if_tx_mbyte,2),'mbyte/s')
-            self._AddOrUpdateEntity(allSensorsPrefix+"netif_"+if_name+'_curbw_in_mbyte',if_name+" BW In (mbyte)",round(if_rx_mbyte,2),'mbyte/s')
-
-
-            self._AddOrUpdateEntity(allSensorsPrefix+"netif_"+if_name+'_total_out_mbit',if_name+" Total Out (mbit)",round(if_tx_total_mbit,2),'mbit')
-            self._AddOrUpdateEntity(allSensorsPrefix+"netif_"+if_name+'_total_in_mbit',if_name+" Total In (mbit)",round(if_rx_total_mbit,2),'mbit')
-            
-            self._AddOrUpdateEntity(allSensorsPrefix+"netif_"+if_name+'_total_out_byte',if_name+" Total Out (bytes)",cur_if_data['tx_octets'],'byte')
-            self._AddOrUpdateEntity(allSensorsPrefix+"netif_"+if_name+'_total_in_byte',if_name+" Total In (bytes)",cur_if_data['rx_octets'],'byte')
-
-
-
-        self._AddOrUpdateEntity(allSensorsPrefix+"cpu_load_1","CPU Avg 1",self.cpuload1*100,'%')
-        self._AddOrUpdateEntity(allSensorsPrefix+"cpu_load_2","CPU Avg 2",self.cpuload2*100,'%')
-        self._AddOrUpdateEntity(allSensorsPrefix+"cpu_load_3","CPU Avg 3",self.cpuload3*100,'%')
-        
-
-
-
+        self._AddOrUpdateEntity(allSensorsPrefix+"cpu_load_1",SENSOR_TYPES["load_1m"],self.target_ip.replace('.','_')+" CPU Avg 1min",self.cpuload1*100)
+        self._AddOrUpdateEntity(allSensorsPrefix+"cpu_load_5",SENSOR_TYPES["load_5m"],self.target_ip.replace('.','_')+" CPU Avg 5min",self.cpuload2*100)
+        self._AddOrUpdateEntity(allSensorsPrefix+"cpu_load_15",SENSOR_TYPES["load_15m"],self.target_ip.replace('.','_')+" CPU Avg 15min",self.cpuload3*100)
+        self._AddOrUpdateEntity(allSensorsPrefix+"uptime",SENSOR_TYPES["uptime"],self.target_ip.replace('.','_')+" Uptime",self.uptime)
+        self._AddOrUpdateEntity(allSensorsPrefix+"memory_used",SENSOR_TYPES["memory"],self.target_ip.replace('.','_')+" Memory Used",self.memRealUsed)
+        self._AddOrUpdateEntity(allSensorsPrefix+"memory_used_percent",SENSOR_TYPES["memory_percent"],self.target_ip.replace('.','_')+" Memory Used (%)",self.memRealPercent)
+        self._AddOrUpdateEntity(allSensorsPrefix+"memory_free",SENSOR_TYPES["memory"],self.target_ip.replace('.','_')+" Memory Free",self.memFree)
+        self._AddOrUpdateEntity(allSensorsPrefix+"memory_buffered",SENSOR_TYPES["memory"],self.target_ip.replace('.','_')+" Memory Buffered",self.memBuffers)
+        self._AddOrUpdateEntity(allSensorsPrefix+"memory_cached",SENSOR_TYPES["memory"],self.target_ip.replace('.','_')+" Memory Cached",self.memCached)
+        self._AddOrUpdateEntity(allSensorsPrefix+"total_tcp_established_conn",SENSOR_TYPES["total_tcp"],self.target_ip.replace('.','_')+" Total TCP Established",self.totalTcpEstablished)
