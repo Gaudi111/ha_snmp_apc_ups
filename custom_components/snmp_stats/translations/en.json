@@ -1,0 +1,29 @@
+{
+    "config": {
+        "error": {
+            "connection_error": "An error while connecting to SNMP server"
+        },
+        "step": {
+            "user": {
+                "data": {
+                    "ip_address": "SNMP Server IP Address",
+                    "scan_interval": "Refresh interval (in seconds)",
+                    "customize_snmp_iface": "Filter network interfaces (space separated list)",
+                    "customize_snmp_community": "SNMP Community to use"
+                },
+                "title": "Configure SNMP Connection"
+            }
+            
+        },
+        "title": "SNMP Stats"
+    },
+    "options":{
+        "step":{
+            "init":{
+                "data":{
+                    "scan_interval": "Refresh interval (in seconds)"
+                }
+            }
+        }
+    }
+}
