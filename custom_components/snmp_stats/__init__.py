@@ -2,16 +2,13 @@
 from .const import *
 import json
 import voluptuous as vol
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import CoreState, HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.entity import Entity
 from homeassistant.const import (
-    CONF_PASSWORD,
-    CONF_USERNAME,
-    CONF_IP_ADDRESS,
     CONF_SCAN_INTERVAL
 )
-
-
 
 async def async_setup(hass, config):
     hass.data.setdefault(DOMAIN, {})
@@ -26,6 +23,16 @@ async def async_setup_entry(hass, config_entry):
     config_entry.add_update_listener(update_listener)
 
     return True
+
+async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
+    """Unload PSE Grid Stat Entry from config_entry."""
+
+    unload_ok = await hass.config_entries.async_unload_platforms(
+        config_entry, PLATFORMS
+    )
+    if unload_ok:
+        hass.data.pop(DOMAIN)
+    return unload_ok
 
 async def update_listener(hass, entry):
     LOGGER.info("Update listener"+json.dumps(dict(entry.options)))
