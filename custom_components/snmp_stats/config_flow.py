@@ -9,8 +9,6 @@ from .const import * #
 # pylint: enable=unused-wildcard-import
 import voluptuous as vol
 from homeassistant.const import (
-    CONF_PASSWORD,
-    CONF_USERNAME,
     CONF_IP_ADDRESS,
     CONF_SCAN_INTERVAL,
 )
@@ -28,8 +26,6 @@ class ConfigFlowHandler(config_entries.ConfigFlow,domain=DOMAIN):
         if not user_input:
             return self._show_form()
 
-        #username = user_input[CONF_USERNAME]
-        #password = user_input[CONF_PASSWORD]
         ipaddress=user_input[CONF_IP_ADDRESS]
         
         try:
@@ -37,15 +33,11 @@ class ConfigFlowHandler(config_entries.ConfigFlow,domain=DOMAIN):
         except:
             e = traceback.format_exc()
             LOGGER.error("Unable to connect to snmp: %s", e)
-            #if ex.errcode == 400:
-            #    return self._show_form({"base": "invalid_credentials"})
             return self._show_form({"base": "connection_error"})
         
         return self.async_create_entry(
             title=user_input[CONF_IP_ADDRESS],
             data={
-                #CONF_USERNAME: username,
-                #CONF_PASSWORD: password,
                 CONF_IP_ADDRESS: ipaddress,
             },
         )

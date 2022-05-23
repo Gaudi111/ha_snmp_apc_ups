@@ -13,8 +13,6 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.entity import Entity
 
 from homeassistant.const import (
-    CONF_PASSWORD,
-    CONF_USERNAME,
     CONF_IP_ADDRESS,
     EVENT_HOMEASSISTANT_STOP, 
     CONF_SCAN_INTERVAL,
@@ -23,9 +21,7 @@ from homeassistant.const import (
 
 async def async_setup_entry(hass, config_entry,async_add_entities):
     """Set up the sensor platform."""
-    LOGGER.info('SETUP_ENTRY')
-    #username=config_entry.data.get(CONF_USERNAME)
-    #password=config_entry.data.get(CONF_PASSWORD)
+    LOGGER.info('Setup snmp_stats')
     ipaddress=config_entry.data.get(CONF_IP_ADDRESS)
     updateIntervalSeconds=config_entry.options.get(CONF_SCAN_INTERVAL)
     maxretries=3
