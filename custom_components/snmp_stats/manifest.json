@@ -4,7 +4,7 @@
     "documentation": "https://github.com/mobrembski/ha_snmp_stats",
     "dependencies": [],
     "codeowners": ["@weltmeyer", "@mobrembski"],
-    "requirements": ["pysnmp"],
+    "requirements": ["pysnmplib==5.0.21"],
     "config_flow": true,
     "version": "0.1.0"
 }
