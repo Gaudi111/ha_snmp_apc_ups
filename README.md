@@ -1,4 +1,8 @@
-# ha_snmp_stats
+# ha_snmp_apc_ups
+IMPORTANT: This is WIP project, I have forked a similar repo.   to create a component to easily display APC UPS data from an SNMP connection.
+
+So far this is a cloned repo from a working report for snmp stats from routers.
+
 Homeassistant integration to show some stats from snmp
 netif - bandwidth
 netif - total traffic
